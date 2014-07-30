@@ -15,7 +15,7 @@
 @property (weak, nonatomic) IBOutlet UITextView *resultText;
 @property (weak, nonatomic) IBOutlet UIActivityIndicatorView *activityIndicator;
 @property (strong, nonatomic) wordJumbleCalculationController *calculatorController;
-
+@property (strong, nonatomic) NSCharacterSet * forbidenChars;
 @end
 
 @implementation wordJumbleViewController
@@ -27,6 +27,7 @@
     [super viewDidLoad];
     [self setupLegalWordsModel];
     [self setupCalculationController];
+    self.forbidenChars = [[NSCharacterSet letterCharacterSet] invertedSet];
 }
 
 - (void)setupLegalWordsModel
@@ -37,24 +38,6 @@
     [self.activityIndicator startAnimating];
     self.activityIndicator.hidesWhenStopped = YES;
     [legalWordsModel addObserver:self forKeyPath:@"ready" options:NSKeyValueObservingOptionNew context:nil];
-}
-
-
-- (void)calculationControllerDidFinish:(NSNotification *)n
-{
-    [self.activityIndicator stopAnimating];
-    NSSet *possibleWords = [self.calculatorController getPossibleWords];
-    NSMutableString *wordsText = [NSMutableString new];
-    if (possibleWords.count > 0)
-    {
-        [possibleWords enumerateObjectsUsingBlock:^(id obj, BOOL *stop)
-        {
-            [wordsText appendFormat:@"%@\n",obj];
-        }];
-    }
-    else
-        [wordsText appendString:@"Sorry no jumble words where found"];
-    self.resultText.text = wordsText;
 }
 
 - (void)setupCalculationController
@@ -80,11 +63,45 @@
     });
 }
 
+- (void)calculationControllerDidFinish:(NSNotification *)n
+{
+    [self.activityIndicator stopAnimating];
+    NSSet *possibleWords = [self.calculatorController getPossibleWords];
+    NSMutableString *wordsText = [NSMutableString new];
+    if (possibleWords.count > 0)
+    {
+        [possibleWords enumerateObjectsUsingBlock:^(id obj, BOOL *stop)
+         {
+             [wordsText appendFormat:@"%@\n",obj];
+         }];
+    }
+    else
+        [wordsText appendString:@"Sorry no jumble words where found"];
+    self.resultText.text = wordsText;
+}
+#pragma mark - action
+
 - (IBAction)jumbleIt:(id)sender
 {
-    [self.inputText resignFirstResponder];
+    if ([self checkIfInputLegalAndAlert])
+        [self.inputText resignFirstResponder];
 }
 
+- (BOOL)checkIfInputLegalAndAlert
+{
+    NSRange range = [self.inputText.text rangeOfCharacterFromSet:self.forbidenChars];
+    if (range.location != NSNotFound)
+    {
+        [[[UIAlertView alloc] initWithTitle:@"Error"
+                                    message:@"Only letters are allowd"
+                                   delegate:nil
+                          cancelButtonTitle:@"OK"
+                          otherButtonTitles:nil] show];
+        return NO;
+    }
+    return YES;
+
+}
 
 #pragma mark - UITextFieldDelegate
 
@@ -100,13 +117,18 @@
 
 - (void)textFieldDidEndEditing:(UITextField *)textField
 {
+    [self.activityIndicator startAnimating];
     [self.calculatorController calculatePossibleWords:self.inputText.text];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField
 {
-    [self.inputText resignFirstResponder];
-    return NO;
+    if ([self checkIfInputLegalAndAlert])
+    {
+        [self.inputText resignFirstResponder];
+        return NO;
+    }
+    return YES;
 }
 
 @end
